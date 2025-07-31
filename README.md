@@ -70,21 +70,6 @@ This repository contains code for the Archipelago 2025 hackathon, focusing on th
 
 After you submit your solution zip file, it will be automatically processed by the hackathon platform. The platform will:
 
-<!-- Далее в подгруженное окружение из образа монтируются наши файлы из архива + служебные файлы для инференса и метрик + данные. Т.е. что-то такое уже лежит в контейнере:
-
-
-```
-.
-├── metric_counter.py
-├── metric.py
-├── metadata.json
-├── solution.py
-└── data
-```
-
-
-Ну и потом уже скрипты запускаются, добавляется файлик ./solution_submission.csv и считаются метрики -->
-
 1. Download the zip file and extract its contents.
 
 2. Check for the presence of the `metadata.json` and `solution.py` files.
