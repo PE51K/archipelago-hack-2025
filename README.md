@@ -9,7 +9,18 @@ This repository contains code for the Archipelago 2025 hackathon, focusing on th
 ```
 .
 ├── .gitignore
+├── metadata.json
+├── notebooks # Jupyter notebooks for exploration and model training
+│   ├── eda
+│   └── ml
+│       └── example_model
 ├── README.md
+├── resources # Additional resources such as datasets, models, etc.
+│   └── weights
+│       └── example_model
+├── scripts # Python scripts for data processing, model training, and evaluation
+│   └── ml
+│       └── example_model
 └── TODO.md
 ```
 
