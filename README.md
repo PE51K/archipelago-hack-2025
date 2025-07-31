@@ -19,6 +19,12 @@ This repository contains code for the Archipelago 2025 hackathon, focusing on th
 ├── scripts # Python scripts for data processing, model training, and evaluation
 │   └── ml
 │       └── example_model
+├── examples # Baseline solutions for the hackathon
+│   ├── random_solution
+│   ├── simple_solution
+│   ├── metric_counter.py # Script for automatic inference over the dataset
+│   ├── metric.py # Script for automatic evaluation metrics
+│   └── solution_submission.csv # Example submission file that creates during automatic evaluation
 └── TODO.md
 ```
 
