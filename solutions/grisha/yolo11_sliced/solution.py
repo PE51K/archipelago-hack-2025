@@ -6,12 +6,11 @@ from sahi.predict import get_sliced_prediction
 from ensemble_boxes import weighted_boxes_fusion
 
 
-WEIGHT = Path("resources/weights/yolo11n/weights/best.pt")
 IMGZ, OVERLAP = 1024, 0.20
 CONF, WBF_IOU = 0.12, 0.55
 
 
-model = YOLO(str(WEIGHT)).fuse()
+model = YOLO("best.pt")
 
 
 def _run(im: np.ndarray) -> List[dict]:

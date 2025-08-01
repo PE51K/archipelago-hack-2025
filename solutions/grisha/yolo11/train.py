@@ -3,15 +3,9 @@ from clearml import Task
 from pathlib  import Path
 
 
-DATA_YAML = "data/merged/uav_people.yaml"
-BASE_W = Path("resources/weights/pretrained/yolo11n/yolo11n.pt")
-OUT_DIR = Path("resources/weights/yolo11n")
-
-
-Task.init(project_name="archipelago-2025-cv-hack", task_name="YOLO-11n_uav_people")
-
+# Training arguments
 args = dict(
-    data=DATA_YAML,
+    data="data/merged/uav_people.yaml",
     imgsz=1024,
     epochs=150,
     batch=-1,
@@ -23,14 +17,20 @@ args = dict(
     cutmix=0.20,
     erasing=0.10,
     close_mosaic=10,
-    box=7, # Wise-IoU weight
-    cls=5, # Focal-CLS weight
-    patience=20, # early-stop after 20 idle epochs
+    box=7,
+    cls=5,
+    patience=20,
     amp=True,
     device=0,
-    project=str(OUT_DIR.parent),
-    name=OUT_DIR.name
+    project="solutions/grisha/yolo11",
+    name="finetuned",
 )
+
+
+# ClearML logging
+Task.init(project_name="archipelago-2025-cv-hack", task_name="YOLO-11n_uav_people")
 Task.current_task().connect(args)
 
-YOLO(str(BASE_W)).train(**args)
+
+# Training
+YOLO("solutions/grisha/yolo11/pretrained/weights/yolo11n.pt").train(**args)

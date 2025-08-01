@@ -1,26 +1,25 @@
-#!/usr/bin/env python
 """
 Merge the three Human-Rescue datasets into Ultralytics/YOLO format.
 
 Example
 -------
-python scripts/data/merge_dataset.py \
-    --raw-root  data/raw \
-    --out-root  data/merged \
-    --include-private
+python scripts/data/merge_dataset.py --raw-root data/raw --out-root data/merged --include-private
 """
+
+
 from __future__ import annotations
 import argparse, shutil, os
 from pathlib import Path
 from typing import Iterable, Tuple
 from tqdm import tqdm
 
+
 IMG_EXT = {".jpg", ".jpeg", ".png", ".JPG", ".JPEG", ".PNG"}
 
 
-# --------------------------------------------------------------------------- #
-# Helpers                                                                     #
-# --------------------------------------------------------------------------- #
+# --------------------------- Helpers ---------------------------------
+
+
 def gather_pairs(img_root: Path, lbl_root: Path | None = None) -> Iterable[Tuple[Path, Path]]:
     """
     Yield (image_path, label_path) pairs.
@@ -67,15 +66,14 @@ def copy_pair(img: Path, lbl: Path, dst_img_dir: Path, dst_lbl_dir: Path, prefix
     shutil.copy2(lbl, dst_lbl)
 
 
-# --------------------------------------------------------------------------- #
-# Main                                                                        #
-# --------------------------------------------------------------------------- #
+# --------------------------- Main --------------------------------------
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--raw-root", required=True, help="Root folder with 01_dataset, 02_dataset, 03_dataset")
     ap.add_argument("--out-root", required=True, help="Destination folder (YOLO structure is created here)")
-    ap.add_argument("--include-private", action="store_true",
-                    help="Move *private* validation into train (⚠ may leak!)")
+    ap.add_argument("--include-private", action="store_true", help="Add *private* validation into val")
     args = ap.parse_args()
 
     raw  = Path(args.raw_root).expanduser().resolve()
@@ -115,13 +113,11 @@ def main():
     private_val = raw / "03_dataset" / "03_validation__DataSet_Human_Rescue" / "private"
     if args.include_private:
         for img, lbl in tqdm(gather_pairs(private_val / "images", private_val / "labels"),
-                             desc="private→train", unit="img"):
+                             desc="private→val", unit="img"):
             copy_pair(img, lbl,
-                      out / "images/train",
-                      out / "labels/train",
+                      out / "images/val",
+                      out / "labels/val",
                       "priv")
-    else:
-        print("⚠  private validation kept out of training (no leak).")
 
     # ---------------------------------------------------------------- YAML ------
     yaml_path = out / "uav_people.yaml"
