@@ -12,3 +12,6 @@ finetuned
 /.python-version
 /pyproject.toml
 /uv.lock
+
+# Pycharm
+.idea
