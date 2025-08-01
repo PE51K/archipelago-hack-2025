@@ -1,4 +1,14 @@
+# Data
 /data
-/venv
+
+# Weights
 pretrained
 finetuned
+
+# Python environment
+/venv
+
+# UV staff
+/.python-version
+/pyproject.toml
+/uv.lock
