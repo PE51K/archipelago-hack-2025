@@ -6,6 +6,7 @@ requires-python = ">=3.12"
 dependencies = [
     "clearml>=2.0.2",
     "ensemble-boxes>=1.0.9",
+    "optuna>=4.4.0",
     "sahi>=0.11.20",
     "ultralytics>=8.0.145",
 ]
