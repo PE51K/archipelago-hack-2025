@@ -88,3 +88,10 @@ After you submit your solution zip file, it will be automatically processed by t
 9. Calculate the metrics and save them to a leaderboard.
 
 **You dont need to include `metric_counter.py` and `metric.py` files in your submission. Just ensure that your `metadata.json` and `solution.py` files are correctly formatted and that your Docker image is accessible on Docker Hub.**
+
+## Submission results
+
+
+| Name | Solution | Base model | Features | Score | Comments |
+|------|----------|------------|----------|-------|----------|
+| Grisha | [yolo11](solutions/grisha/yolo11) | yolo11n | - | 0.0862 | Simple solution, fucked up with data (merged "private" val into train), only 26 epochs |
