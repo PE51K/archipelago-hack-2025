@@ -23,9 +23,9 @@ This repository contains code for the Archipelago 2025 hackathon, focusing on th
 
 ### Branching policy
 
-- The `main` branch is used for final best performing solution.
+- The `main` branch stores all solutions that are ready for submission.
 - If you want to work on a new feature or fix a bug, create a new branch from `main` with a descriptive name (e.g., `feature/add-new-model` or `bugfix/fix-detection-issue`).
-- If you want to run your separate experiments, create a new branch from `main` with a descriptive name (e.g., `experiment/experiment-1`).
+- If you want to run your separate experiments, create a new branch from `main` with a descriptive name (e.g., `experiment/your-name/experiment-1`).
 - When your work is done, create a pull request to merge your changes into `main`. Ensure that your code is well-documented and tested before merging.
 
 ### Code style
@@ -37,15 +37,17 @@ This repository contains code for the Archipelago 2025 hackathon, focusing on th
 
 ## Submission process
 
-1. Develop your solution in a separate branch: dowload dataset, train your model, and test it.
+1. Create a new branch from `main` for your solution and check out to it.
 
-2. Ensure that your code is well-documented and follows the development guidelines.
+2. Create a separate directory for your solution in the `solutions` directory (e.g., `solutions/your_name/solution_name`).
 
-3. If your solution requires additional files (e.g., model weights, configuration files), place them in the appropriate directories (e.g., `resources/weights`).
+3. Develop your solution in this directory and ensure that it follows the development guidelines.
 
-4. If your solution requires some specific environment (e.g., specific Python packages or operating system): create a Dockerfile in the root directory of the repository. The Dockerfile should specify the base image, install necessary dependencies. Afrer that, build the Docker image and push it to a Docker Hub repository.
+3. If your solution requires additional files (e.g., model weights, configuration files), place them in your solution directory. Ensure that large files are not tracked by Git (use `.gitignore` to exclude them).
 
-5. Create a `metadata.json` file in the root directory of the repository. This file should contain the name of the Docker image in the format:
+4. If your solution requires some specific environment (e.g., specific Python packages or operating system): create a Dockerfile in your solution directory. The Dockerfile should specify the base image, install necessary dependencies. Afrer that, build the Docker image and push it to a Docker Hub repository.
+
+5. Create a `metadata.json` file in your solution directory. This file should contain the name of the Docker image in the format:
 
 ```json
 {
@@ -53,11 +55,11 @@ This repository contains code for the Archipelago 2025 hackathon, focusing on th
 }
 ```
 
-6. Create a `solution.py` file in the root directory of the repository. This file should contain a synchronous function `predict`, which takes an input image and returns the predicted output (e.g., bounding boxes, labels). See `examples/random_solution` or `examples/simple_solution` for examples of the `solution.py` file.
+6. Create a `solution.py` file in your solution directory. This file should contain a synchronous function `predict`, which takes an input image and returns the predicted output (e.g., bounding boxes, labels). See `solutions/examples/random_solution` or `solutions/examples/simple_solution` for examples of the `solution.py` file.
 
 7. Zip your solution and upload it to the hackathon [platform](https://xn--e1aaagg3atn2a.xn--2035-43davo0a5a6bk9d.xn--p1ai/ds). If your solution requires additional files (e.g., model weights, configuration files), include them in the zip file. The zip file should at least contain the following files:
 
-```
+```plaintext
 .
 ├── metadata.json # This file contains the name of the Docker image
 └── solution.py # This file contains the predict function
@@ -77,7 +79,7 @@ After you submit your solution zip file, it will be automatically processed by t
 
 5. Mount the extracted files from the zip file into the Docker container.
 
-6. Mount the hackathon platform's data into the Docker container as well as mount the `metric_counter.py` and `metric.py` files (see the example in `examples/`).
+6. Mount the hackathon platform's data into the Docker container as well as mount the `metric_counter.py` and `metric.py` files (see the example in `solutions/examples/`).
 
 7. Iterate over the images in the mounted data directory, calling the `predict` function from `solution.py` for each image.
 
