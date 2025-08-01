@@ -1,41 +1,36 @@
-# train.py ---------------------------------------------
 from ultralytics import YOLO
 from clearml import Task
-import shutil, pathlib
+from pathlib  import Path
+
 
 DATA_YAML = "resources/data/merged/uav_people.yaml"
-MODEL     = "yolo11m.pt"
-IMG_SIZE  = 1024
-EPOCHS    = 150
-OUT_DIR   = pathlib.Path("weights/yolo11m")   # <— central weights folder
-OUT_DIR.mkdir(parents=True, exist_ok=True)
+BASE_W = Path("resources/weights/pretrained/yolo11n/yolo11n.pt")
+OUT_DIR = Path("resources/weights/yolo11n")
 
-task = Task.init(project_name="archipelago-2025-cv-hack",
-                 task_name   ="yolo11m_uav_people")
 
-train_args = dict(
-    data           = DATA_YAML,
-    imgsz          = IMG_SIZE,
-    epochs         = EPOCHS,
-    batch          = -1,
-    lr0            = 0.01,
-    warmup_epochs  = 3,
-    mosaic         = 1.0,
-    copy_paste     = True,
-    cutmix         = 0.2,
-    close_mosaic   = 10,
-    device         = 0,
-    amp            = True,
-    project        = "runs_yolo11",            # keeps Ultralytics logs tidy
-    name           = "uav_people_1024"
+Task.init(project_name="archipelago-2025-cv-hack", task_name="YOLO-11n_uav_people")
+
+args = dict(
+    data=DATA_YAML,
+    imgsz=1024,
+    epochs=150,
+    batch=-1,
+    lr0=0.01,
+    warmup_epochs=3,
+    mosaic=1.0,
+    copy_paste=1.0,
+    mixup=0.10,
+    cutmix=0.20,
+    erasing=0.10,
+    close_mosaic=10,
+    box=7, # Wise-IoU weight
+    cls=5, # Focal-CLS weight
+    patience=20, # early-stop after 20 idle epochs
+    amp=True,
+    device=0,
+    project=str(OUT_DIR.parent),
+    name=OUT_DIR.name
 )
-task.connect(train_args)                       # ✅  ClearML logging
+Task.current_task().connect(args)
 
-model = YOLO(MODEL)
-model.train(**train_args)
-
-# ── copy best checkpoint to artefacts/ for Docker use ─────────
-best_pt = pathlib.Path(train_args["project"]) / \
-          train_args["name"] / "weights" / "best.pt"
-shutil.copy2(best_pt, OUT_DIR / "best.pt")     # explicit, predictable path
-print(f"✅  Best weights saved ➜ {OUT_DIR/'best.pt'}")
+YOLO(str(BASE_W)).train(**args)
