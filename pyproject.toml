@@ -1,0 +1,10 @@
+[project]
+name = "archipelago-2025-cv-hack"
+version = "0.1.0"
+description = "Add your description here"
+requires-python = ">=3.12"
+dependencies = [
+    "clearml>=2.0.2",
+    "sahi>=0.11.20",
+    "ultralytics>=8.0.145",
+]
