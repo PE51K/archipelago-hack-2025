@@ -1,88 +1,85 @@
-import numpy as np
+"""
+High-res UAV people detector – SAHI tiled inference version
+"""
+
 from typing import List, Union
-from pathlib import Path
-from ultralytics import YOLO
+import numpy as np
+
+from sahi import AutoDetectionModel
 from sahi.predict import get_sliced_prediction
-from ensemble_boxes import weighted_boxes_fusion
 
-# Constants for image slicing and prediction thresholds
-IMGZ, OVERLAP = 1024, 0.20  # Slice size and overlap ratio
-CONF, WBF_IOU = 0.12, 0.55  # Confidence threshold and WBF IoU threshold
+# ── Model --------------------------------------------------------------------
+_WEIGHTS = "best.pt"                    # path to your trained weights
+detection_model = AutoDetectionModel.from_pretrained(      # SAHI 0.23+ API
+    model_type="ultralytics",
+    model_path=_WEIGHTS,
+    confidence_threshold=0.25,
+    device="cuda:0",                    # set "cpu" if no GPU
+)
 
-# Load YOLO model weights
-model = YOLO("best.pt")
+# ── Tiling parameters (keep them in sync with training) ----------------------
+_SLICE = 1536
+_OVERLAP = 0.20
 
 
-def _run(im: np.ndarray) -> List[dict]:
-    """
-    Run object detection on a single image using sliced prediction and weighted boxes fusion.
+def _bbox_to_norm_xywh(x1, y1, x2, y2, img_w: int, img_h: int):
+    """Convert absolute coords to YOLO-style normalised xc-yc-w-h."""
+    xc = ((x1 + x2) / 2) / img_w
+    yc = ((y1 + y2) / 2) / img_h
+    w = (x2 - x1) / img_w
+    h = (y2 - y1) / img_h
+    return xc, yc, w, h
 
-    Args:
-        im (np.ndarray): Input image as a NumPy array.
 
-    Returns:
-        List[dict]: List of detected objects, each as a dictionary with normalized coordinates,
-                    width, height, label, and score.
-    """
-    h, w, _ = im.shape
+def _infer_single(image: np.ndarray) -> List[dict]:
+    """Run SAHI sliced inference on one image."""
+    h, w = image.shape[:2]
 
-    # Perform sliced prediction using SAHI
-    r = get_sliced_prediction(
-        im, 
-        model,
-        slice_height=IMGZ, 
-        slice_width=IMGZ,
-        overlap_height_ratio=OVERLAP,
-        overlap_width_ratio=OVERLAP,
-        conf=CONF, 
-        device="0", 
-        verbose=False
+    result = get_sliced_prediction(
+        image=image,
+        detection_model=detection_model,
+        slice_height=_SLICE,
+        slice_width=_SLICE,
+        overlap_height_ratio=_OVERLAP,
+        overlap_width_ratio=_OVERLAP,
+        verbose=0,
     )
 
-    bxs, scs = [], []
-    # Collect bounding boxes and scores from predictions
-    for o in r.object_prediction_list:
-        x1, y1, x2, y2 = o.bbox.to_xyxy()
-        bxs.append([x1/w, y1/h, x2/w, y2/h])  # Normalize coordinates
-        scs.append(o.score.value)
-    if not bxs:
-        return []
+    detections = []
+    for obj in result.object_prediction_list:
+        x1, y1, x2, y2 = obj.bbox.to_voc_bbox()      # safest accessor
+        xc, yc, w_n, h_n = _bbox_to_norm_xywh(x1, y1, x2, y2, w, h)
 
-    # Fuse overlapping boxes using Weighted Boxes Fusion
-    bxs, scs, _ = weighted_boxes_fusion(
-        [bxs], 
-        [scs], 
-        [[0]],
-        iou_thr=WBF_IOU, 
-        skip_box_thr=1e-3
-    )
-
-    # Format results as list of dictionaries
-    return [
-        dict(
-            xc=(x1+x2)/2, 
-            yc=(y1+y2)/2,
-            w=x2-x1, 
-            h=y2-y1,
-            label=0, 
-            score=s
-        ) 
-        for (x1, y1, x2, y2), s 
-        in zip(bxs, scs)
-    ]
+        detections.append(
+            {
+                "xc": xc,
+                "yc": yc,
+                "w": w_n,
+                "h": h_n,
+                "label": int(obj.category.id) if obj.category else 0,
+                "score": obj.score.value,
+            }
+        )
+    return detections
 
 
-def predict(images: Union[List[np.ndarray], np.ndarray]) -> List[List[dict]]:
+def predict(images: Union[np.ndarray, List[np.ndarray]]) -> List[List[dict]]:
     """
-    Run object detection on a batch of images.
+    Args
+    ----
+    images : a single H×W×C image or a list thereof.
 
-    Args:
-        images (Union[List[np.ndarray], np.ndarray]): List of images or a single image as NumPy arrays.
-
-    Returns:
-        List[List[dict]]: List of detection results for each image.
+    Returns
+    -------
+    List[List[dict]] — detection list per image.
     """
     if isinstance(images, np.ndarray):
         images = [images]
-    # Run detection for each image
-    return [_run(im) for im in images]
+    return [_infer_single(img) for img in images]
+
+
+# ── Quick sanity check -------------------------------------------------------
+if __name__ == "__main__":
+    dummy = np.zeros((720, 1280, 3), dtype=np.uint8)  # black test image
+    out = predict(dummy)
+    print("Dummy prediction:", out)
