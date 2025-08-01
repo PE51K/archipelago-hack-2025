@@ -4,9 +4,9 @@ Merge the three Human-Rescue datasets into Ultralytics/YOLO format.
 
 Example
 -------
-python prepare_dataset.py \
-    --raw-root  /data/raw \
-    --out-root  /data/merged \
+python scripts/data/merge_dataset.py \
+    --raw-root  data/raw \
+    --out-root  data/merged \
     --include-private
 """
 from __future__ import annotations

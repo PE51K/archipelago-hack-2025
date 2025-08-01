@@ -1,3 +1,0 @@
-- [ ] Implement base solution that would pass automatic evaluation
-- [ ] Refactor project structure if necessary
-- [ ] Add documentation for the base solution and automatic evaluation
