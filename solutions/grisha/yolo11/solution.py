@@ -29,7 +29,7 @@ def infer_image_bbox(image: np.ndarray) -> List[dict]:
     """
     res_list = []
 
-    result = model.predict(source=image, imgsz=928, device=0)
+    result = model.predict(source=image, imgsz=1024, device=0)
     
     result_numpy = []
 
