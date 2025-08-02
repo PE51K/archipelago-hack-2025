@@ -29,6 +29,8 @@ sahi coco slice \
 
 5. Merge sliced coco val and train into one yolo dataset using `scripts/data/slicing/coco_to_yolo.py`.
 
+6. Fix labels for `person` using `scripts/data/slicing/fix_labels.py`.
+
 ## References
 
 - https://github.com/obss/sahi/discussions/755
