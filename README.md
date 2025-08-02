@@ -92,6 +92,9 @@ After you submit your solution zip file, it will be automatically processed by t
 ## Submission results
 
 
-| Name | Solution | Base model | Features | Score | Comments |
-|------|----------|------------|----------|-------|----------|
-| Grisha | [yolo11](solutions/grisha/yolo11) | yolo11n | - | 0.0862 | Simple solution, fucked up with data (merged "private" val into train), only 26 epochs |
+| Number | Name | Solution source | Solution zip | Base model | Features | Score | Comments |
+|--------|------|-----------------|--------------|------------|----------|-------|----------|
+| 0 | Grisha | [yolo11](solutions/grisha/yolo11) | - | yolo11n | - | 0.0862 | Simple solution, fucked up with data (merged "private" val into train), only 26 epochs |
+| 1 | Grisha | [yolo11](solutions/grisha/yolo11) | [grisha-yolo11-simple-solution-fixed-imgsz](https://disk.yandex.ru/d/n7ymhXAUZqCgTg) | yolo11n | same input image size on train and inference | 0.1242 | Like solution 0, but I fixed input size of image when inferring (made it same as training) |
+| 2 | Grisha | [yolo11](solutions/grisha/yolo11) | [grisha-yolo11-simple-solution-fixed-imgsz-fixed-empty-prediction](https://disk.yandex.ru/d/oWh68kbPz9BciA) | yolo11n | no empty predictions | 0.1242 | Like solution 1, but I added one empty prediction if no predictions were made for image (like suggested in the chat) (score not changed) |
+| 3 | Grisha | [yolo11_sliced](solutions/grisha/yolo11_sliced) | [grisha-yolo11-sliced-solution-trash-model-fixed-docker](https://disk.yandex.ru/d/4F0KKYPXxwthKA) | yolo11n | sliced prediction using [sahi](https://github.com/obss/sahi), custom docker image | 0.5536 | Used trash model from solution 0, but added slicing using [sahi](https://github.com/obss/sahi) on inference which raised the score significantly. Also fixed the Dockerfile to use the correct base image and added necessary dependencies |
