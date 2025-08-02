@@ -6,9 +6,9 @@ from clearml import Task
 args = dict(
     # ────────── Training ──────────
     data="data/merged_sliced/data.yml",
-    epochs=50,
+    epochs=30,
     patience=10, # Early stopping on 10 epochs without improvement
-    batch=0.95, # Use 95% of GPU mem
+    batch=16,
     imgsz=int(1536/2), # Was 1536, 768 for faster training
     device=0,
     workers=16,
