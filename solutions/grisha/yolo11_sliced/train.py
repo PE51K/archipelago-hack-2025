@@ -1,23 +1,13 @@
 from ultralytics import YOLO
 from clearml import Task
 
-# ── 1. ClearML tracking ────────────────────────────────────────────
-Task.init(
-    project_name="archipelago-2025-cv-hack",
-    task_name="YOLOv8n-P2_UAV_people"
-)
 
-# ── 2. Paths ───────────────────────────────────────────────────────
-DATA_YAML = "data/merged/uav_people_sliced.yaml"   # after SAHI tiling
-MODEL_CFG = "models/yolov8n-p2.yaml"               # stride-4 head
-PRETRAINED = "yolov8n.pt"                          # ImageNet-&-COCO weights
-
-# ── 3. Training arguments ─────────────────────────────────────────
-train_args = dict(
-    data=DATA_YAML,
+# Training arguments
+args = dict(
+    data="data/merged_sliced/data.yml",
     imgsz=1536,
     epochs=120,
-    batch=8,
+    batch=-1,
     lr0=0.01,
     weight_decay=0.0005,
     warmup_epochs=3,
@@ -37,13 +27,15 @@ train_args = dict(
     fliplr=0.50,
     amp=True,
     device=0,
-    project="solutions/grisha/yolo11",
-    name="uav_people_p2_1536",
+    project="solutions/grisha/yolo11_sliced",
+    name="finetuned",
 )
 
-# Log all hyper-params to ClearML
-Task.current_task().connect(train_args)
 
-# ── 4. Train ───────────────────────────────────────────────────────
-model = YOLO(PRETRAINED, cfg=MODEL_CFG)   # loads backbone weights + P2 head
-model.train(**train_args)
+# ClearML logging
+Task.init(project_name="archipelago-2025-cv-hack", task_name="YOLO-11n_uav_people_slicing")
+Task.current_task().connect(args)
+
+
+# Training
+YOLO("solutions/grisha/yolo11_sliced/model_configs/yolo11n-p2.yaml").train(**args)
