@@ -16,13 +16,14 @@ This solution implements YOLOv8n model for real-time object detection in UAV ima
 - **Docker image**: `your_dockerhub/yolo_solution:latest`
 
 
-## File Structure
+```
 yolo_solution/
-├── solution.py 
-├── metadata.json
-├── weights/
-│ └── best.pt # Trained model weights
-└── train.ipynb # Training process documentation
+├── solution.py          # Основной скрипт для инференса
+├── metadata.json       # Метаданные модели
+├── weights/            
+│   └── best.pt         # Веса обученной модели
+└── train.ipynb         # Jupyter-ноутбук с процессом обучения
+```
 
 ## Submission Results
 
