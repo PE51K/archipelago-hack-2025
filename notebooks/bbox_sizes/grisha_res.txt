@@ -1,0 +1,151 @@
+--------------------
+0.1242 | 8 | 1024 | no slice | default dataset
+
+                 count      mean       std       min       25%       50%  \
+w_stride       50071.0  3.418487  2.045024  0.023561  1.996473  2.890406   
+h_stride       50071.0  3.351918  2.094006  0.023557  1.931621  2.821106   
+
+                    75%        max  
+w_stride       4.373039  48.383442  
+h_stride       4.193015  47.776840  
+
+w_stride         0.777358
+h_stride         0.824631
+
+--------------------
+0.5536 | 8 | 1024 | 1536 | default dataset
+
+                 count      mean       std       min       25%       50%  \
+w_stride       50071.0  3.418487  2.045024  0.023561  1.996473  2.890406   
+h_stride       50071.0  3.351918  2.094006  0.023557  1.931621  2.821106   
+w_stride_sahi  50071.0  7.067131  3.241070  0.083934  4.907552  6.532934   
+h_stride_sahi  50071.0  6.895536  3.247344  0.074366  4.781817  6.249830   
+
+                    75%        max  
+w_stride       4.373039  48.383442  
+h_stride       4.193015  47.776840  
+w_stride_sahi  9.027568  62.999273  
+h_stride_sahi  8.583334  62.209427  
+
+w_stride         0.777358
+h_stride         0.824631
+w_stride_sahi    1.533610
+h_stride_sahi    1.656296
+Name: 0.01, dtype: float64
+
+Jensen–Shannon distance: 0.5280
+
+--------------------
+0.4942 | 8 | 1024 | 1024 | default dataset
+
+                 count       mean       std       min       25%       50%  \
+w_stride       50071.0   3.418487  2.045024  0.023561  1.996473  2.890406   
+h_stride       50071.0   3.351918  2.094006  0.023557  1.931621  2.821106   
+w_stride_sahi  50071.0  10.594699  4.868821  0.125900  7.361038  9.799400   
+h_stride_sahi  50071.0  10.337582  4.877202  0.111549  7.161133  9.374744   
+
+                     75%        max  
+w_stride        4.373039  48.383442  
+h_stride        4.193015  47.776840  
+w_stride_sahi  13.541352  94.498910  
+h_stride_sahi  12.875001  93.314141  
+
+w_stride         0.777358
+h_stride         0.824631
+w_stride_sahi    2.300118
+h_stride_sahi    2.394928
+Name: 0.01, dtype: float64
+
+Jensen–Shannon distance: 0.6649
+
+--------------------
+0.5660 | 8 | 1024 | 2048
+
+                 count      mean       std       min       25%       50%  \
+w_stride       50071.0  3.418487  2.045024  0.023561  1.996473  2.890406   
+h_stride       50071.0  3.351918  2.094006  0.023557  1.931621  2.821106   
+w_stride_sahi  50071.0  5.320818  2.421339  0.062950  3.713425  4.901684   
+h_stride_sahi  50071.0  5.191763  2.428402  0.055775  3.610682  4.689874   
+
+                    75%        max  
+w_stride       4.373039  48.383442  
+h_stride       4.193015  47.776840  
+w_stride_sahi  6.781303  48.383442  
+h_stride_sahi  6.447807  47.776840  
+
+w_stride         0.777358
+h_stride         0.824631
+w_stride_sahi    1.177815
+h_stride_sahi    1.272039
+Name: 0.01, dtype: float64
+
+Jensen–Shannon distance: 0.3739
+
+
+a) --------------------
+0.5660 | 8 | 1024 | 2048
+? | 8 | 1024 | 2048 + 128 | default dataset
+                 count      mean       std       min       25%       50%  \
+w_stride       50071.0  3.418487  2.045024  0.023561  1.996473  2.890406   
+h_stride       50071.0  3.351918  2.094006  0.023557  1.931621  2.821106   
+w_stride_sahi  50071.0  5.101189  2.306617  0.059247  3.557404  4.708338   
+h_stride_sahi  50071.0  4.979367  2.323138  0.052494  3.458615  4.493343   
+
+                    75%        max  
+w_stride       4.373039  48.383442  
+h_stride       4.193015  47.776840  
+w_stride_sahi  6.483551  48.383442  
+h_stride_sahi  6.160654  47.776840  
+
+w_stride         0.777358
+h_stride         0.824631
+w_stride_sahi    1.177814
+h_stride_sahi    1.272039
+Name: 0.01, dtype: float64
+
+Jensen–Shannon distance: 0.3547
+
+b) --------------------
+? | 4 | 640 | no slice | default dataset
+
+                 count      mean       std       min       25%       50%  \
+w_stride       50071.0  4.273108  2.556280  0.029451  2.495592  3.613007   
+h_stride       50071.0  4.189898  2.617508  0.029447  2.414526  3.526383   
+
+                    75%        max  
+w_stride       5.466299  60.479302  
+h_stride       5.241269  59.721050  
+
+w_stride         0.971697
+h_stride         1.030788
+Name: 0.01, dtype: float64
+
+c) --------------------
+? | 8 | 640 | 1536 | sliced dataset
+
+                 count      mean       std       min       25%       50%  \
+w_stride_sahi  50071.0  4.416957  2.025669  0.052458  3.067220  4.083084   
+h_stride_sahi  50071.0  4.309710  2.029590  0.046479  2.988636  3.906144   
+
+                    75%        max  
+w_stride_sahi  5.642230  39.374546  
+h_stride_sahi  5.364584  38.880892  
+
+w_stride_sahi    0.958506
+h_stride_sahi    1.035185
+Name: 0.01, dtype: float64
+
+d) --------------------
+? | 4 | 640 | 2048 | sliced dataset
+
+                 count      mean       std       min       25%       50%  \
+w_stride_sahi  50071.0  6.651023  3.026674  0.078688  4.641781  6.127105   
+h_stride_sahi  50071.0  6.489703  3.035502  0.069718  4.513353  5.862342   
+
+                    75%        max  
+w_stride_sahi  8.476629  60.479302  
+h_stride_sahi  8.059759  59.721050  
+
+w_stride_sahi    1.472268
+h_stride_sahi    1.590049
+Name: 0.01, dtype: float64
