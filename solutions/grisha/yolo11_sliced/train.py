@@ -9,21 +9,13 @@ have no annotations. The key improvements over standard v8DetectionLoss are:
 3. False negative penalty to prevent "always empty" predictions
 4. Enhanced task-aligned assignment (topk=15, beta=4.0)
 5. Real-time false negative monitoring and diagnostics
-
-Usage:
-    Set ENABLE_DETAILED_LOGGING = True/False to control diagnostic output
-    Adjust false_negative_weight in BalancedLoss.__init__ for FN penalty strength
 """
 
-from ultralytics import YOLO
-from ultralytics.utils.loss import v8DetectionLoss, FocalLoss   # built-ins
+from ultralytics.utils.loss import v8DetectionLoss, FocalLoss
 from ultralytics.models.yolo.detect import DetectionTrainer
 from ultralytics.nn.tasks import DetectionModel
 from ultralytics.utils.tal import make_anchors
 import torch
-
-# Logging control - set to False to disable detailed batch diagnostics
-ENABLE_DETAILED_LOGGING = True
 
 
 class BalancedLoss(v8DetectionLoss):
@@ -143,12 +135,6 @@ class BalancedLoss(v8DetectionLoss):
         false_negatives = false_negative_mask.sum().item()
         total_positives = positive_mask.sum().item()
         
-        # Conditional logging based on global switch
-        if ENABLE_DETAILED_LOGGING:
-            print(f"Batch: {images_with_annotations}/{total_images} images with annotations, "
-                  f"FN: {false_negatives}/{total_positives} positives, "
-                  f"cls_loss={loss[1]:.4f}")
-
         # Bbox and DFL losses (unchanged from v8DetectionLoss)
         if fg_mask.sum():
             target_bboxes /= stride_tensor
@@ -198,7 +184,9 @@ print("Hello from train.py!")
 trainer = MyTrainer(overrides=dict(
         model="yolo11n.pt",    # Pre-trained weights to start from
         data="data/merged_sliced/data.yml",  # Dataset with 80% empty images
-        epochs=150,
+        project="solutions/grisha/yolo11_sliced",
+        name="8_640_custom_loss_sliced_dataset_slice_size_1536",
+        epochs=30,
         imgsz=640,
         batch=16,
         
