@@ -89,9 +89,19 @@ After you submit your solution zip file, it will be automatically processed by t
 
 **You dont need to include `metric_counter.py` and `metric.py` files in your submission. Just ensure that your `metadata.json` and `solution.py` files are correctly formatted and that your Docker image is accessible on Docker Hub.**
 
+## Wize ideas for future
+
+1. Check out image sizes and bbox sized distributions difference between train and val. Check this [notebook](notebooks/image_sizes/image_sizes.ipynb) for start.
+
+2. Analize score calculation used on leaderboard (maybe it punishes some special errors) to modify val metrics, loss and train process accordingly.
+
 ## Submission results
 
 
-| Name | Solution | Base model | Features | Score | Comments |
-|------|----------|------------|----------|-------|----------|
-| Grisha | [yolo11](solutions/grisha/yolo11) | yolo11n | - | 0.0862 | Simple solution, fucked up with data (merged "private" val into train), only 26 epochs |
+| Number | Name | Solution source | Solution zip | Base model | Features | Score | Comments |
+|--------|------|-----------------|--------------|------------|----------|-------|----------|
+| 0 | Grisha | [yolo11](solutions/grisha/yolo11) | - | yolo11n | - | 0.0862 | Simple solution, fucked up with data (merged "private" val into train), only 26 epochs |
+| 1 | Grisha | [yolo11](solutions/grisha/yolo11) | [grisha-yolo11-simple-solution-fixed-imgsz](https://disk.yandex.ru/d/n7ymhXAUZqCgTg) | yolo11n | same input image size on train and inference | 0.1242 | Like solution 0, but I fixed input size of image when inferring (made it same as training) |
+| 2 | Grisha | [yolo11](solutions/grisha/yolo11) | [grisha-yolo11-simple-solution-fixed-imgsz-fixed-empty-prediction](https://disk.yandex.ru/d/oWh68kbPz9BciA) | yolo11n | no empty predictions | 0.1242 | Like solution 1, but I added one empty prediction if no predictions were made for image (like suggested in the chat) (score not changed) |
+| 3 | Grisha | [yolo11_sliced](solutions/grisha/yolo11_sliced) | [grisha-yolo11-sliced-solution-trash-model-fixed-docker](https://disk.yandex.ru/d/4F0KKYPXxwthKA) | yolo11n | sliced prediction using [sahi](https://github.com/obss/sahi), custom docker image | 0.5536 | Used trash model from solution 0, but added slicing using [sahi](https://github.com/obss/sahi) on inference which raised the score significantly. Also fixed the Dockerfile to use the correct base image and added necessary dependencies |
+| 4 | Grisha | [yolo11_sliced](solutions/grisha/yolo11_sliced) | - | yolo11n | sliced prediction using [sahi](https://github.com/obss/sahi), selected slice-size | 0.5660 | Same as 3, but I made slice size bigger (2048 vs 1536) to still obtain more information, but make bbox-size distribution difference between train dataset (non sliced) and what model sees when predictiong on slices. Refer to this [notebook](notebooks/bbox_sizes/yolo_feature_stats.ipynb) for more info |
