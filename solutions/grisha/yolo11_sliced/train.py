@@ -129,11 +129,6 @@ class BalancedLoss(v8DetectionLoss):
         else:
             # Handle edge case of completely empty batch
             loss[1] = cls_loss_raw / total_images
-            
-        # DIFFERENCE 5: Real-time False Negative Monitoring
-        # Track how many positive samples are being missed (diagnostic)
-        false_negatives = false_negative_mask.sum().item()
-        total_positives = positive_mask.sum().item()
         
         # Bbox and DFL losses (unchanged from v8DetectionLoss)
         if fg_mask.sum():
