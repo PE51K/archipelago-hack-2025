@@ -5,8 +5,7 @@ import torch.nn.functional as F
 import torch
 
 
-
-class CustomvFocalLoss(FocalLoss):
+class CustomFocalLoss(FocalLoss):
     def forward(self, pred: torch.Tensor, label: torch.Tensor) -> torch.Tensor:
         """Calculate focal loss with modulating factors for class imbalance."""
         loss = F.binary_cross_entropy_with_logits(pred, label, reduction="none")
@@ -24,7 +23,7 @@ class CustomvFocalLoss(FocalLoss):
 class Customv8DetectionLoss(v8DetectionLoss):
     def __init__(self, model):
         super().__init__(model)
-        self.bce = CustomvFocalLoss()
+        self.bce = CustomFocalLoss(alpha=0.25, gamma=1.2)
 
 
 class CustomDetectionModel(DetectionModel):
@@ -50,6 +49,12 @@ trainer = CustomTrainer(
         epochs=30,
         imgsz=640,
         batch=16,
+        cls=2.0,
+        optimizer="AdamW",
+        lr0=1e-4,
+        cos_lr=True,
+        dropout=0.1,
+        plots=True,
     )
 )
 
