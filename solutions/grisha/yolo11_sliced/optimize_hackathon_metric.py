@@ -200,7 +200,7 @@ def process_single_image_worker(image_path) -> List[dict]:
     Returns:
         List[dict]: List of detection results for the image.
     """
-    image_id = image_path.stem
+    image_id = image_path.name
     
     # Load image
     image = cv2.imread(str(image_path))
