@@ -11,7 +11,8 @@ python optimize_hackathon_metric.py \
     --img_dir /path/to/test/images \
     --gt_csv /path/to/gt.csv \
     --conf_range 0.05 0.95 0.05 \
-    --save_csv --out_dir runs/hackathon_optimization
+    --max_workers 4 \
+    --out_dir runs/hackathon_optimization
 """
 
 import os
@@ -20,6 +21,7 @@ import time
 import csv
 import argparse
 import gc
+import signal
 from pathlib import Path
 from typing import List
 from concurrent.futures import ProcessPoolExecutor, as_completed
@@ -43,6 +45,31 @@ from metric import evaluate, df_to_bytes
 COLUMNS = ['image_id', 'label', 'xc', 'yc', 'w', 'h', 'w_img', 'h_img', 'score', 'time_spent']
 
 
+# Global flag for graceful shutdown
+class GracefulShutdown:
+    """
+    Handle graceful shutdown on SIGINT (Ctrl+C).
+    Allows the optimization loop to finish current iteration and save partial results.
+    """
+    def __init__(self):
+        self.shutdown_requested = False
+        signal.signal(signal.SIGINT, self._signal_handler)
+    
+    def _signal_handler(self, signum, frame):
+        """Handle SIGINT signal by setting shutdown flag."""
+        print("\n\n⚠️  Graceful shutdown requested (Ctrl+C detected)")
+        print("Finishing current confidence evaluation and saving partial results...")
+        self.shutdown_requested = True
+    
+    def should_shutdown(self):
+        """Check if shutdown has been requested."""
+        return self.shutdown_requested
+
+
+# Create global shutdown handler
+shutdown_handler = GracefulShutdown()
+
+
 #  ----- Command-line arguments -----
 def parse_args() -> argparse.Namespace:
     """
@@ -53,7 +80,6 @@ def parse_args() -> argparse.Namespace:
     - `--gt_csv`: Path to the ground truth CSV file.
     - `--conf_range`: Range of confidence thresholds to test, specified as three floats (start, stop, step).
     - `--max_workers`: Maximum number of parallel workers for image processing.
-    - `--save_csv`: Flag to save full grid search results to CSV.
     - `--out_dir`: Output directory for results.
     
     Returns:
@@ -75,7 +101,6 @@ def parse_args() -> argparse.Namespace:
         help='Grid of confidence thresholds'
     )
     parser.add_argument('--max_workers', type=int, default=os.cpu_count(), help='Maximum number of parallel workers for image processing')
-    parser.add_argument('--save_csv', action='store_true', help='Save full grid search results to CSV')
     parser.add_argument('--out_dir', type=str, default='runs/hackathon_optimization', help='Output directory for results')
     
     return parser.parse_args()
@@ -165,26 +190,16 @@ def update_confidence_threshold(conf: float):
     detection_model.confidence_threshold = conf
 
 
-def process_single_image_worker(args_tuple) -> List[dict]:
+def process_single_image_worker(image_path) -> List[dict]:
     """
     Worker function for multiprocessing that processes a single image.
-    Each process will load its own model instance for optimal performance.
     
     Args:
-        args_tuple: Tuple containing (image_path, conf)
+        image_path (Path): Path to the image file to process.
         
     Returns:
         List[dict]: List of detection results for the image.
     """
-    image_path, conf = args_tuple
-    
-    # Import and initialize model in each worker process
-    # This ensures each process has its own model instance
-    from solution import predict, detection_model
-    
-    # Update confidence threshold for this process
-    detection_model.confidence_threshold = conf
-    
     image_id = image_path.stem
     
     # Load image
@@ -264,32 +279,46 @@ def process_images_for_confidence(image_paths: List[Path], conf: float, max_work
         pd.DataFrame: DataFrame containing predictions and metadata for each image.
     """
     all_results = []
-    
-    # Prepare arguments for worker processes
-    worker_args = [(image_path, conf) for image_path in image_paths]
+
+    # Update global detection model's confidence threshold
+    update_confidence_threshold(conf)
     
     # Use spawn context for better compatibility across platforms
     ctx = get_context('spawn')
     
     # Process images in parallel using ProcessPoolExecutor
-    with ProcessPoolExecutor(max_workers=max_workers, mp_context=ctx) as executor:
-        # Submit all image processing tasks
-        future_to_path = {
-            executor.submit(process_single_image_worker, args): args[0]
-            for args in worker_args
-        }
-        
-        # Collect results as they complete
-        with tqdm(total=len(image_paths), desc=f"Processing conf={conf:.3f}", leave=False) as pbar:
-            for future in as_completed(future_to_path):
-                image_path = future_to_path[future]
-                try:
-                    results = future.result()
-                    all_results.extend(results)
-                except Exception as exc:
-                    print(f'Image {image_path} generated an exception: {exc}')
-                finally:
-                    pbar.update(1)
+    try:
+        with ProcessPoolExecutor(max_workers=max_workers, mp_context=ctx) as executor:
+            # Submit all image processing tasks
+            future_to_path = {
+                executor.submit(process_single_image_worker, image_path): image_path
+                for image_path in image_paths
+            }
+            
+            # Collect results as they complete
+            with tqdm(total=len(image_paths), desc=f"Processing conf={conf:.3f}", leave=False) as pbar:
+                for future in as_completed(future_to_path):
+                    # Check for shutdown request during processing
+                    if shutdown_handler.should_shutdown():
+                        # Cancel remaining futures
+                        for f in future_to_path:
+                            f.cancel()
+                        break
+                    
+                    # Get the image path associated with this future
+                    image_path = future_to_path[future]
+                    try:
+                        results = future.result()
+                        all_results.extend(results)
+                    except Exception as exc:
+                        print(f'Image {image_path} generated an exception: {exc}')
+                    finally:
+                        pbar.update(1)
+
+    except KeyboardInterrupt:
+        # Handle KeyboardInterrupt in case signal handler doesn't catch it
+        print("\n🛑 Processing interrupted")
+        pass
     
     # Create DataFrame and clear results list
     df_result = pd.DataFrame(all_results, columns=COLUMNS)
@@ -319,7 +348,7 @@ def evaluate_metric_for_confidence(pred_df: pd.DataFrame, gt_bytes: bytes, conf:
             gt_file=gt_bytes,
             thresholds=np.round(np.arange(0.3, 1.0, 0.07), 2),
             beta=1.0,
-            m=500,
+            m=1000,
             parallelize=True
         )
         
@@ -370,13 +399,32 @@ def main():
     best_conf = None
     grid_results = []
     
+    interrupted = False
+    processed_count = 0
+    
     for conf in tqdm(conf_values, desc="Optimizing confidence"):
+        # Check for shutdown request before processing
+        if shutdown_handler.should_shutdown():
+            interrupted = True
+            print(f"\n🛑 Shutdown requested. Processed {processed_count}/{len(conf_values)} confidence values.")
+            break
+        
         # Process images with current confidence using parallel processing
         pred_df = process_images_for_confidence(image_paths, conf, max_workers=args.max_workers)
+        
+        # Check for shutdown request after processing (in case it was interrupted during processing)
+        if shutdown_handler.should_shutdown():
+            interrupted = True
+            print(f"\n🛑 Shutdown requested. Processed {processed_count}/{len(conf_values)} confidence values.")
+            # Clean up current prediction data
+            del pred_df
+            gc.collect()
+            break
         
         # Evaluate metric
         score = evaluate_metric_for_confidence(pred_df, gt_bytes, conf)
         grid_results.append((conf, score))
+        processed_count += 1
         
         if score > best_score:
             best_score = score
@@ -390,42 +438,72 @@ def main():
     
     # Results summary
     print("\n" + "="*50)
-    print("🏆 OPTIMIZATION RESULTS")
-    print("="*50)
-    print(f"Best confidence threshold: {best_conf:.3f}")
-    print(f"Best metric score: {best_score:.5f}")
+    if interrupted:
+        print("⚠️  PARTIAL OPTIMIZATION RESULTS (INTERRUPTED)")
+    else:
+        print("🏆 OPTIMIZATION RESULTS")
     print("="*50)
     
-    # Save results
-    if args.save_csv:
-        out_dir = Path(args.out_dir)
-        out_dir.mkdir(parents=True, exist_ok=True)
-        
-        csv_path = out_dir / "hackathon_metric_optimization.csv"
+    if best_conf is not None:
+        print(f"Best confidence threshold: {best_conf:.3f}")
+        print(f"Best metric score: {best_score:.5f}")
+    else:
+        print("No results available (interrupted before first evaluation)")
+    
+    if interrupted:
+        print(f"Processed: {processed_count}/{len(conf_values)} confidence values")
+        print("Results are incomplete due to early termination")
+    
+    print("="*50)
+    
+    # Save results (including partial results if interrupted)
+    out_dir = Path(args.out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Save results even if partial
+    if grid_results:
+        csv_filename = "hackathon_metric_optimization_partial.csv" if interrupted else "hackathon_metric_optimization.csv"
+        csv_path = out_dir / csv_filename
         with csv_path.open("w", newline="") as f:
             writer = csv.writer(f)
             writer.writerow(["conf", "hackathon_metric"])
             writer.writerows(grid_results)
         
-        print(f"📊 Full results saved to: {csv_path.resolve()}")
-        
-        # Save summary
-        summary_path = out_dir / "optimization_summary.txt"
-        with summary_path.open("w") as f:
-            f.write(f"Hackathon Metric Optimization Summary\n")
-            f.write(f"=====================================\n")
-            f.write(f"Image directory: {args.img_dir}\n")
-            f.write(f"Ground truth CSV: {args.gt_csv}\n")
-            f.write(f"Confidence range: {conf_start:.3f} to {conf_stop:.3f} step {conf_step:.3f}\n")
-            f.write(f"Images processed: {len(image_paths)}\n")
+        result_type = "Partial results" if interrupted else "Full results"
+        print(f"📊 {result_type} saved to: {csv_path.resolve()}")
+    
+    # Save summary
+    summary_filename = "optimization_summary_partial.txt" if interrupted else "optimization_summary.txt"
+    summary_path = out_dir / summary_filename
+    with summary_path.open("w") as f:
+        f.write(f"Hackathon Metric Optimization Summary\n")
+        f.write(f"=====================================\n")
+        f.write(f"Image directory: {args.img_dir}\n")
+        f.write(f"Ground truth CSV: {args.gt_csv}\n")
+        f.write(f"Confidence range: {conf_start:.3f} to {conf_stop:.3f} step {conf_step:.3f}\n")
+        f.write(f"Images processed: {len(image_paths)}\n")
+        f.write(f"Confidence values tested: {processed_count}/{len(conf_values)}\n")
+        if interrupted:
+            f.write(f"Status: INTERRUPTED - partial results only\n")
+        else:
+            f.write(f"Status: COMPLETED\n")
+        if best_conf is not None:
             f.write(f"Best confidence: {best_conf:.3f}\n")
             f.write(f"Best metric score: {best_score:.5f}\n")
-        
-        print(f"📄 Summary saved to: {summary_path.resolve()}")
+        else:
+            f.write(f"Best confidence: N/A (no results)\n")
+            f.write(f"Best metric score: N/A (no results)\n")
+    
+    summary_type = "Partial summary" if interrupted else "Summary"
+    print(f"📄 {summary_type} saved to: {summary_path.resolve()}")
 
 
 if __name__ == "__main__":
     # Required for multiprocessing on Windows and some Unix systems
     from multiprocessing import freeze_support
     freeze_support()
+    # Supress warnings
+    import logging
+    logging.getLogger('sahi.models.ultralytics').setLevel(logging.ERROR)
+    # Run the main optimization routine
     main()
