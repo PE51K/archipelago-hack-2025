@@ -17,6 +17,7 @@ python yolo_to_gt_csv.py \
     --txt_dir /path/to/yolo_txts \
     --output /path/to/public_gt_solution.csv
 """
+
 from pathlib import Path
 import argparse, csv
 from typing import List, Tuple
@@ -30,6 +31,7 @@ def parse_args() -> argparse.Namespace:
     """
     Parses command-line arguments and returns an argparse.Namespace object. Awaits
     the following arguments:
+
         --img_dir:   Root folder containing images (required).
         --txt_dir:   Root folder containing YOLO .txt files (required).
         --output:    Destination CSV file (default: 'public_gt_solution.csv').
@@ -50,6 +52,7 @@ def parse_args() -> argparse.Namespace:
 def read_txt(txt_path: Path) -> List[Tuple[int,float,float,float,float]]:
     """
     Parses a YOLO annotation file. Each line:
+
         cls xc yc w h
 
     All five values are space-separated, floats except cls (int).
@@ -115,6 +118,7 @@ def main() -> None:
     annotations, and writes the results to a CSV file.
 
     The output CSV will contain the following columns:
+    
         image_id,label,xc,yc,w,h,w_img,h_img
     """
     # Parse command-line arguments
