@@ -19,8 +19,11 @@ import sys
 import time
 import csv
 import argparse
+import gc
 from pathlib import Path
 from typing import List
+from concurrent.futures import ProcessPoolExecutor, as_completed
+from multiprocessing import get_context
 
 import numpy as np
 import pandas as pd
@@ -46,11 +49,12 @@ def parse_args() -> argparse.Namespace:
     Parses command-line arguments and returns an argparse.Namespace object. Awaits
     the following arguments:
 
-        --img_dir:   Directory containing test images (required).
-        --gt_csv:    Path to ground truth CSV file (required).
-        --conf_range: Grid of confidence thresholds (default: 0.05 0.95 0.05).
-        --save_csv:  Flag to save full grid search results to CSV (default: False).
-        --out_dir:   Output directory for results (default: runs/hackathon_optimization).
+    - `--img_dir`: Directory containing test images.
+    - `--gt_csv`: Path to the ground truth CSV file.
+    - `--conf_range`: Range of confidence thresholds to test, specified as three floats (start, stop, step).
+    - `--max_workers`: Maximum number of parallel workers for image processing.
+    - `--save_csv`: Flag to save full grid search results to CSV.
+    - `--out_dir`: Output directory for results.
     
     Returns:
         argparse.Namespace: Parsed command-line arguments.
@@ -70,6 +74,7 @@ def parse_args() -> argparse.Namespace:
         default=(0.05, 0.95, 0.05),
         help='Grid of confidence thresholds'
     )
+    parser.add_argument('--max_workers', type=int, default=os.cpu_count(), help='Maximum number of parallel workers for image processing')
     parser.add_argument('--save_csv', action='store_true', help='Save full grid search results to CSV')
     parser.add_argument('--out_dir', type=str, default='runs/hackathon_optimization', help='Output directory for results')
     
@@ -160,83 +165,141 @@ def update_confidence_threshold(conf: float):
     detection_model.confidence_threshold = conf
 
 
-def process_images_for_confidence(image_paths: List[Path], conf: float) -> pd.DataFrame:
+def process_single_image_worker(args_tuple) -> List[dict]:
     """
-    Process images with the specified confidence threshold and return results as a DataFrame.
+    Worker function for multiprocessing that processes a single image.
+    Each process will load its own model instance for optimal performance.
+    
+    Args:
+        args_tuple: Tuple containing (image_path, conf)
+        
+    Returns:
+        List[dict]: List of detection results for the image.
+    """
+    image_path, conf = args_tuple
+    
+    # Import and initialize model in each worker process
+    # This ensures each process has its own model instance
+    from solution import predict, detection_model
+    
+    # Update confidence threshold for this process
+    detection_model.confidence_threshold = conf
+    
+    image_id = image_path.stem
+    
+    # Load image
+    image = cv2.imread(str(image_path))
+    if image is None:
+        return []  # Return empty list for failed loads
+        
+    # Convert BGR to RGB for prediction
+    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    h_img, w_img = image.shape[:2]
+    
+    # Measure inference time
+    start_time = time.time()
+    
+    try:
+        # Run prediction on single image
+        image_results = predict([image])[0]  # predict() expects a list, returns a list
+    except Exception as e:
+        print(f"Error processing {image_path}: {e}")
+        return []
+    
+    elapsed_time = time.time() - start_time
+    time_per_image = round(elapsed_time, 4)
+    
+    # Process results
+    results = []
+    if image_results:
+        for detection in image_results:
+            result = {
+                'image_id': image_id,
+                'label': detection['label'],
+                'xc': detection['xc'],
+                'yc': detection['yc'],
+                'w': detection['w'],
+                'h': detection['h'],
+                'w_img': w_img,
+                'h_img': h_img,
+                'score': detection['score'],
+                'time_spent': time_per_image
+            }
+            results.append(result)
+    else:
+        # No detections - still need to record time spent
+        result = {
+            'image_id': image_id,
+            'label': 0,
+            'xc': np.nan,
+            'yc': np.nan,
+            'w': np.nan,
+            'h': np.nan,
+            'w_img': w_img,
+            'h_img': h_img,
+            'score': np.nan,
+            'time_spent': time_per_image
+        }
+        results.append(result)
+    
+    # Clean up image data immediately
+    del image
+    if 'image_results' in locals():
+        del image_results
+    
+    return results
+
+
+def process_images_for_confidence(image_paths: List[Path], conf: float, max_workers: int = 4) -> pd.DataFrame:
+    """
+    Process images in parallel with specified confidence threshold using multiprocessing.
+    Each process gets its own model instance for optimal CPU utilization.
 
     Args:
         image_paths (List[Path]): List of image file paths to process.
         conf (float): Confidence threshold for predictions.
+        max_workers (int): Maximum number of parallel workers.
 
     Returns:
         pd.DataFrame: DataFrame containing predictions and metadata for each image.
     """
-    # Update confidence threshold
-    update_confidence_threshold(conf)
+    all_results = []
     
-    # Iterate over images and run predictions
-    results = []
-    for image_path in tqdm(image_paths, desc=f"Processing conf={conf:.3f}", leave=False):
-        image_id = image_path.stem
-        
-        # Load image
-        image = cv2.imread(str(image_path))
-        if image is None:
-            print(f"Warning: Could not load image {image_path}")
-            continue
-            
-        # Convert BGR to RGB for prediction
-        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        h_img, w_img = image.shape[:2]
-        
-        # Measure inference time
-        start_time = time.time()
-        
-        # Run prediction
-        image_results = predict([image])
-        
-        # Calculate time spent
-        elapsed_time = time.time() - start_time
-        time_per_image = round(elapsed_time, 4)
-        
-        # Process results
-        if image_results and image_results[0]:
-            for detection in image_results[0]:
-                result = {
-                    'image_id': image_id,
-                    'label': detection['label'],
-                    'xc': detection['xc'],
-                    'yc': detection['yc'],
-                    'w': detection['w'],
-                    'h': detection['h'],
-                    'w_img': w_img,
-                    'h_img': h_img,
-                    'score': detection['score'],
-                    'time_spent': time_per_image
-                }
-                results.append(result)
-        else:
-            # No detections - still need to record time spent
-            result = {
-                'image_id': image_id,
-                'label': 0,
-                'xc': np.nan,
-                'yc': np.nan,
-                'w': np.nan,
-                'h': np.nan,
-                'w_img': w_img,
-                'h_img': h_img,
-                'score': np.nan,
-                'time_spent': time_per_image
-            }
-            results.append(result)
+    # Prepare arguments for worker processes
+    worker_args = [(image_path, conf) for image_path in image_paths]
     
-    return pd.DataFrame(results, columns=COLUMNS)
+    # Use spawn context for better compatibility across platforms
+    ctx = get_context('spawn')
+    
+    # Process images in parallel using ProcessPoolExecutor
+    with ProcessPoolExecutor(max_workers=max_workers, mp_context=ctx) as executor:
+        # Submit all image processing tasks
+        future_to_path = {
+            executor.submit(process_single_image_worker, args): args[0]
+            for args in worker_args
+        }
+        
+        # Collect results as they complete
+        with tqdm(total=len(image_paths), desc=f"Processing conf={conf:.3f}", leave=False) as pbar:
+            for future in as_completed(future_to_path):
+                image_path = future_to_path[future]
+                try:
+                    results = future.result()
+                    all_results.extend(results)
+                except Exception as exc:
+                    print(f'Image {image_path} generated an exception: {exc}')
+                finally:
+                    pbar.update(1)
+    
+    # Create DataFrame and clear results list
+    df_result = pd.DataFrame(all_results, columns=COLUMNS)
+    del all_results  # Free memory immediately
+    return df_result
 
 
 def evaluate_metric_for_confidence(pred_df: pd.DataFrame, gt_bytes: bytes, conf: float) -> float:
     """
-    Evaluate the hackathon metric for a given confidence threshold.
+    Memory-efficient evaluation of the hackathon metric for a given confidence threshold.
 
     Args:
         pred_df (pd.DataFrame): DataFrame containing predictions for the current confidence.
@@ -260,6 +323,9 @@ def evaluate_metric_for_confidence(pred_df: pd.DataFrame, gt_bytes: bytes, conf:
             parallelize=True
         )
         
+        # Clean up intermediate data
+        del pred_bytes
+        
         return float(metric)
         
     except Exception as e:
@@ -281,6 +347,7 @@ def main():
     print(f"Image directory: {args.img_dir}")
     print(f"Ground truth CSV: {args.gt_csv}")
     print(f"Confidence range: {args.conf_range[0]:.3f} to {args.conf_range[1]:.3f} step {args.conf_range[2]:.3f}")
+    print(f"Max workers: {args.max_workers}")
     
     # Load ground truth
     print("\n📋 Loading ground truth...")
@@ -298,14 +365,14 @@ def main():
     
     print(f"\n⚡ Testing {len(conf_values)} confidence thresholds...")
     
-    # Grid search
+    # Grid search with memory monitoring
     best_score = -1.0
     best_conf = None
     grid_results = []
     
     for conf in tqdm(conf_values, desc="Optimizing confidence"):
-        # Process images with current confidence
-        pred_df = process_images_for_confidence(image_paths, conf)
+        # Process images with current confidence using parallel processing
+        pred_df = process_images_for_confidence(image_paths, conf, max_workers=args.max_workers)
         
         # Evaluate metric
         score = evaluate_metric_for_confidence(pred_df, gt_bytes, conf)
@@ -316,6 +383,10 @@ def main():
             best_conf = conf
         
         print(f"conf={conf:.3f} → metric={score:.5f}")
+        
+        # Critical: Clean up memory after each confidence iteration
+        del pred_df  # Free the DataFrame immediately
+        gc.collect()  # Force garbage collection to free memory
     
     # Results summary
     print("\n" + "="*50)
@@ -354,4 +425,7 @@ def main():
 
 
 if __name__ == "__main__":
+    # Required for multiprocessing on Windows and some Unix systems
+    from multiprocessing import freeze_support
+    freeze_support()
     main()
