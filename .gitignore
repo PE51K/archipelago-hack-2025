@@ -4,6 +4,7 @@
 # Weights
 pretrained
 finetuned
+*.pt
 
 # Python environment
 /venv
@@ -15,3 +16,6 @@ finetuned
 
 # Pycharm
 .idea
+
+# Python cache
+__pycache__
