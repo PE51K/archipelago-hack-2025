@@ -42,20 +42,21 @@ class CustomTrainer(DetectionTrainer):
 # Training Configuration
 trainer = CustomTrainer(
     overrides=dict(
-        model="yolo11n.pt",
-        data="data/merged_sliced/data.yml",
-        project="solutions/grisha/yolo11_sliced",
-        name="8_512_custom_loss_sliced_dataset_slice_size_1536_focal_loss_resume_1",
+        model="yolo11s.pt",
+        data="data/merged_sliced/sampled_data.yaml",
+        project="solutions/grisha/yolo11_sliced/finetuned",
+        name="8_512_custom_loss_sliced_dataset_slice_size_1536_focal_loss_yolo11s",
         resume=True,
         epochs=30,
         imgsz=512,
-        batch=64,
+        batch=8,
         cls=1.5,
         optimizer="AdamW",
         lr0=1e-4,
         cos_lr=True,
         dropout=0.1,
         plots=True,
+        amp=False,
     )
 )
 
