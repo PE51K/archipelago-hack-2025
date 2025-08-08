@@ -23,7 +23,7 @@ class CustomFocalLoss(FocalLoss):
 class Customv8DetectionLoss(v8DetectionLoss):
     def __init__(self, model):
         super().__init__(model)
-        self.bce = CustomFocalLoss(alpha=0.3, gamma=1.2)
+        self.bce = CustomFocalLoss(alpha=0.25, gamma=2.0)
 
 
 class CustomDetectionModel(DetectionModel):
@@ -42,21 +42,25 @@ class CustomTrainer(DetectionTrainer):
 # Training Configuration
 trainer = CustomTrainer(
     overrides=dict(
-        model="yolo11s.pt",
+        model="solutions/grisha/yolo11_sliced/model_configs/yolo11s-p2.yaml",
         data="data/merged_sliced/sampled_data.yaml",
         project="solutions/grisha/yolo11_sliced/finetuned",
         name="8_512_custom_loss_sliced_dataset_slice_size_1536_focal_loss_yolo11s",
-        resume=True,
-        epochs=30,
+        epochs=15,
         imgsz=512,
         batch=8,
-        cls=1.5,
+        cls=3.0,
         optimizer="AdamW",
+        weight_decay=0.01,
+        momentum=0.95,
         lr0=1e-4,
+        lrf=2e-1,
+        warmup_bias_lr=1e-1,
+        warmup_epochs=1,
         cos_lr=True,
-        dropout=0.1,
         plots=True,
         amp=False,
+        save_period=1,
     )
 )
 
