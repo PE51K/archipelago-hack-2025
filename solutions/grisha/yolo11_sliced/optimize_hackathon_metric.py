@@ -32,6 +32,10 @@ import pandas as pd
 import cv2
 from tqdm import tqdm
 
+# Import the predict function and detection_model from the same directory
+# Make sure to use sliced solution to non sliced dataset and vice versa
+from solution import predict, detection_model
+
 # Import metric evaluation from examples
 sys.path.append("solutions/examples")
 from metric import evaluate, df_to_bytes
@@ -171,25 +175,36 @@ def get_image_paths(img_dir: str, img_exts: List[str]) -> List[Path]:
     return image_paths
 
 
-def process_single_image_worker(args_tuple) -> List[dict]:
+def update_confidence_threshold(conf: float):
+    """
+    Update the global detection model's confidence threshold.
+
+    Args:
+        conf (float): New confidence threshold to set.
+    """
+    # Validate the confidence threshold
+    if not (0.0 <= conf <= 1.0):
+        raise ValueError(f"Confidence threshold must be between 0.0 and 1.0, got {conf:.3f}")
+    
+    global detection_model
+    detection_model.confidence_threshold = conf
+
+
+def process_single_image_worker(image_path, confidence_threshold) -> List[dict]:
     """
     Worker function for multiprocessing that processes a single image.
     
     Args:
-        args_tuple (tuple): Tuple containing (image_path, confidence_threshold).
+        image_path (Path): Path to the image file to process.
+        confidence_threshold (float): Confidence threshold for the detection model.
         
     Returns:
         List[dict]: List of detection results for the image.
     """
-    image_path, conf = args_tuple
+    # Update global detection model's confidence threshold
+    update_confidence_threshold(confidence_threshold)
+
     image_id = image_path.name
-    
-    # Import and update model in worker process
-    # Make sure to use sliced solution to non sliced dataset and vice versa
-    from solution import detection_model, predict
-    
-    # Update confidence threshold in this worker process
-    detection_model.confidence_threshold = conf
     
     # Load image
     image = cv2.imread(str(image_path))
@@ -257,7 +272,7 @@ def process_single_image_worker(args_tuple) -> List[dict]:
 def process_images_for_confidence(image_paths: List[Path], conf: float, max_workers: int = 4) -> pd.DataFrame:
     """
     Process images in parallel with specified confidence threshold using multiprocessing.
-    Each worker process imports and configures its own model instance with the correct confidence threshold.
+    Each process gets its own model instance for optimal CPU utilization.
 
     Args:
         image_paths (List[Path]): List of image file paths to process.
@@ -275,9 +290,9 @@ def process_images_for_confidence(image_paths: List[Path], conf: float, max_work
     # Process images in parallel using ProcessPoolExecutor
     try:
         with ProcessPoolExecutor(max_workers=max_workers, mp_context=ctx) as executor:
-            # Submit all image processing tasks with confidence threshold
+            # Submit all image processing tasks
             future_to_path = {
-                executor.submit(process_single_image_worker, (image_path, conf)): image_path
+                executor.submit(process_single_image_worker, image_path, conf): image_path
                 for image_path in image_paths
             }
             
@@ -485,4 +500,11 @@ def main():
 
 
 if __name__ == "__main__":
+    # Required for multiprocessing on Windows and some Unix systems
+    from multiprocessing import freeze_support
+    freeze_support()
+    # Supress warnings
+    import logging
+    logging.getLogger('sahi.models.ultralytics').setLevel(logging.ERROR)
+    # Run the main optimization routine
     main()
