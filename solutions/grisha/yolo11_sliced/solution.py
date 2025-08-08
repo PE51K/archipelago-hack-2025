@@ -12,7 +12,10 @@ from ultralytics.models.yolo.detect import DetectionTrainer
 from ultralytics.nn.tasks import DetectionModel
 import torch.nn.functional as F
 import torch
-from ultralytics import YOLO
+
+# Supress invalid predictor warnings
+import logging
+logging.getLogger('sahi.models.ultralytics').setLevel(logging.ERROR)
 
 
 class CustomFocalLoss(FocalLoss):
