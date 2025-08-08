@@ -288,6 +288,8 @@ def process_images_for_confidence(image_paths: List[Path], conf: float, max_work
     ctx = get_context('spawn')
     
     # Process images in parallel using ProcessPoolExecutor
+    # Each process actually loads its own model instance and uses own global context, 
+    # so make sure that num_workers number of models fits into your your GPU memory
     try:
         with ProcessPoolExecutor(max_workers=max_workers, mp_context=ctx) as executor:
             # Submit all image processing tasks
