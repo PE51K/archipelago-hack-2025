@@ -12,8 +12,14 @@ This repository contains code for the Archipelago 2025 hackathon, focusing on th
 │   ├── archived
 │   ├── merged
 │   └── raw
+├── notebooks # Jupyter notebooks for data analysis and visualization
+│   ├── bbox_sizes # Notebooks for analyzing bounding box sizes
+│   ├── image_sizes # Notebooks for analyzing image sizes
+│   └── data_consistency # Notebooks for checking data consistency
 ├── scripts
-│   └── data # Data processing scripts
+│   ├── data # Data processing scripts
+│   ├── hyperparams # Scripts for hyperparameter optimization
+│   └── eval # Evaluation scripts
 └── solutions
     ├── examples # Example solutions from orgs
     └── grisha # Grisha's solutions
@@ -105,3 +111,7 @@ After you submit your solution zip file, it will be automatically processed by t
 | 2 | Grisha | [yolo11](solutions/grisha/yolo11) | [grisha-yolo11-simple-solution-fixed-imgsz-fixed-empty-prediction](https://disk.yandex.ru/d/oWh68kbPz9BciA) | yolo11n | no empty predictions | 0.1242 | Like solution 1, but I added one empty prediction if no predictions were made for image (like suggested in the chat) (score not changed) |
 | 3 | Grisha | [yolo11_sliced](solutions/grisha/yolo11_sliced) | [grisha-yolo11-sliced-solution-trash-model-fixed-docker](https://disk.yandex.ru/d/4F0KKYPXxwthKA) | yolo11n | sliced prediction using [sahi](https://github.com/obss/sahi), custom docker image | 0.5536 | Used trash model from solution 0, but added slicing using [sahi](https://github.com/obss/sahi) on inference which raised the score significantly. Also fixed the Dockerfile to use the correct base image and added necessary dependencies |
 | 4 | Grisha | [yolo11_sliced](solutions/grisha/yolo11_sliced) | - | yolo11n | sliced prediction using [sahi](https://github.com/obss/sahi), selected slice-size | 0.5660 | Same as 3, but I made slice size bigger (2048 vs 1536) to still obtain more information, but make bbox-size distribution difference between train dataset (non sliced) and what model sees when predictiong on slices. Refer to this [notebook](notebooks/bbox_sizes/yolo_feature_stats.ipynb) for more info |
+| 5 | Grisha | [yolo11_sliced](solutions/grisha/yolo11_sliced) | - | yolo11n | sliced prediction using [sahi](https://github.com/obss/sahi), slice-trained model | 0.6069 | Used model trained on image slices (P R MaP50 MaP50-95 = 0.827 0.737 0.807 0.517 on public val) to match inference conditions. Confidence threshold was sahi default (0.3), NMS IoU threshold was sahi default (0.7). |
+| 6 | Grisha | [yolo11_sliced](solutions/grisha/yolo11_sliced) | - | yolo11n | sliced prediction using [sahi](https://github.com/obss/sahi), slice-trained model, fitness-optimised hparams | 0.5605 | Same as 5, but used [optimize.py](scripts/hyperparams/optimize.py) to search optimal fitness-based confidence threshold = 0.4. Gave worst result than 5, which meant that public val !~ private val. |
+| 7 | Grisha | [yolo11_sliced](solutions/grisha/yolo11_sliced) | - | yolo11n | sliced prediction using [sahi](https://github.com/obss/sahi), slice-trained model, hackathon-metric-optimised hparams | 0.5780 | Same as 5, but used [optimize_hackathon_metric.py](scripts/hyperparams/optimize_hackathon_metric.py) to search optimal hackathon-metric-based confidence threshold = 0.48. Gave worst result than 5, which again meant that public val !~ private val. |
+| 8 | Grisha | [yolo11_sliced](solutions/grisha/yolo11_sliced) | - | yolo11n | sliced prediction using [sahi](https://github.com/obss/sahi), better slice-trained model | 0.5310 | Same as 5, but used more trained model with better val results (P R MaP50 MaP50-95 = 0.889 0.77 0.849 0.563). Gave worst result than 5, which AGAIN meant that public val !~ private val. |
