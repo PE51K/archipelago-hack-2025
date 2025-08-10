@@ -12,8 +12,14 @@ This repository contains code for the Archipelago 2025 hackathon, focusing on th
 │   ├── archived
 │   ├── merged
 │   └── raw
+├── notebooks # Jupyter notebooks for data analysis and visualization
+│   ├── bbox_sizes # Notebooks for analyzing bounding box sizes
+│   ├── image_sizes # Notebooks for analyzing image sizes
+│   └── data_consistency # Notebooks for checking data consistency
 ├── scripts
-│   └── data # Data processing scripts
+│   ├── data # Data processing scripts
+│   ├── hyperparams # Scripts for hyperparameter optimization
+│   └── eval # Evaluation scripts
 └── solutions
     ├── examples # Example solutions from orgs
     └── grisha # Grisha's solutions
