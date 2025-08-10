@@ -1,8 +1,8 @@
 """
-Grid-search optimal confidence threshold for hackathon metric
-============================================================
+Grid-search optimal confidence & IoU thresholds for hackathon metric
+===================================================================
 
-This script optimizes the confidence threshold for YOLO11 sliced inference
+This script optimizes the confidence & IoU thresholds for YOLO11 sliced inference
 by evaluating the hackathon metric on a test dataset.
 
 Example
@@ -11,6 +11,7 @@ python optimize_hackathon_metric.py \
     --img_dir /path/to/test/images \
     --gt_csv /path/to/gt.csv \
     --conf_range 0.05 0.95 0.05 \
+    --iou_range 0.30 0.90 0.10 \
     --max_workers 4 \
     --out_dir runs/hackathon_optimization
 """
@@ -59,7 +60,7 @@ class GracefulShutdown:
     def _signal_handler(self, signum, frame):
         """Handle SIGINT signal by setting shutdown flag."""
         print("\n\n⚠️  Graceful shutdown requested (Ctrl+C detected)")
-        print("Finishing current confidence evaluation and saving partial results...")
+        print("Finishing current threshold evaluation and saving partial results...")
         self.shutdown_requested = True
     
     def should_shutdown(self):
@@ -80,6 +81,7 @@ def parse_args() -> argparse.Namespace:
     - `--img_dir`: Directory containing test images.
     - `--gt_csv`: Path to the ground truth CSV file.
     - `--conf_range`: Range of confidence thresholds to test, specified as three floats (start, stop, step).
+    - `--iou_range`: Range of IoU thresholds to test, specified as three floats (start, stop, step).
     - `--max_workers`: Maximum number of parallel workers for image processing.
     - `--out_dir`: Output directory for results.
     
@@ -88,7 +90,7 @@ def parse_args() -> argparse.Namespace:
     """
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-        description="Optimize confidence threshold for hackathon metric"
+        description="Optimize confidence & IoU thresholds for hackathon metric"
     )
     
     parser.add_argument('--img_dir', required=True, help='Directory containing test images')
@@ -100,6 +102,14 @@ def parse_args() -> argparse.Namespace:
         metavar=('START', 'STOP', 'STEP'),
         default=(0.05, 0.95, 0.05),
         help='Grid of confidence thresholds'
+    )
+    parser.add_argument(
+        '--iou_range', 
+        nargs=3, 
+        type=float, 
+        metavar=('START', 'STOP', 'STEP'),
+        default=(0.30, 0.90, 0.10),
+        help='Grid of IoU thresholds (used as starting IoU for metric sweep)'
     )
     parser.add_argument('--max_workers', type=int, default=os.cpu_count(), help='Maximum number of parallel workers for image processing')
     parser.add_argument('--out_dir', type=str, default='runs/hackathon_optimization', help='Output directory for results')
@@ -191,19 +201,32 @@ def update_confidence_threshold(conf: float):
     detection_model.confidence_threshold = conf
 
 
-def process_single_image_worker(image_path, confidence_threshold) -> List[dict]:
+def update_iou_threshold(iou: float):
+    """
+    Update the global detection model's IoU/NMS threshold if the model exposes it.
+    If your model uses a different attribute (e.g., nms_iou, iou, iou_thres), adjust here.
+    """
+    if not (0.0 <= iou <= 1.0):
+        raise ValueError(f"IoU threshold must be between 0.0 and 1.0, got {iou:.3f}")
+    global detection_model
+    detection_model.iou_threshold = iou
+    
+
+def process_single_image_worker(image_path, confidence_threshold, iou_threshold) -> List[dict]:
     """
     Worker function for multiprocessing that processes a single image.
     
     Args:
         image_path (Path): Path to the image file to process.
         confidence_threshold (float): Confidence threshold for the detection model.
+        iou_threshold (float): IoU/NMS threshold for the detection model (if supported).
         
     Returns:
         List[dict]: List of detection results for the image.
     """
-    # Update global detection model's confidence threshold
+    # Update model thresholds in this process
     update_confidence_threshold(confidence_threshold)
+    update_iou_threshold(iou_threshold)
 
     image_id = image_path.name
     
@@ -270,14 +293,15 @@ def process_single_image_worker(image_path, confidence_threshold) -> List[dict]:
     return results
 
 
-def process_images_for_confidence(image_paths: List[Path], conf: float, max_workers: int = 4) -> pd.DataFrame:
+def process_images_for_thresholds(image_paths: List[Path], conf: float, iou: float, max_workers: int = 4) -> pd.DataFrame:
     """
-    Process images in parallel with specified confidence threshold using multiprocessing.
+    Process images in parallel with specified confidence & IoU thresholds using multiprocessing.
     Each process gets its own model instance for optimal CPU utilization.
 
     Args:
         image_paths (List[Path]): List of image file paths to process.
         conf (float): Confidence threshold for predictions.
+        iou (float): IoU/NMS threshold for predictions (if supported by model).
         max_workers (int): Maximum number of parallel workers.
 
     Returns:
@@ -295,12 +319,12 @@ def process_images_for_confidence(image_paths: List[Path], conf: float, max_work
         with ProcessPoolExecutor(max_workers=max_workers, mp_context=ctx) as executor:
             # Submit all image processing tasks
             future_to_path = {
-                executor.submit(process_single_image_worker, image_path, conf): image_path
+                executor.submit(process_single_image_worker, image_path, conf, iou): image_path
                 for image_path in image_paths
             }
             
             # Collect results as they complete
-            with tqdm(total=len(image_paths), desc=f"Processing conf={conf:.3f}", leave=False) as pbar:
+            with tqdm(total=len(image_paths), desc=f"Processing conf={conf:.3f}, iou={iou:.3f}", leave=False) as pbar:
                 for future in as_completed(future_to_path):
                     # Check for shutdown request during processing
                     if shutdown_handler.should_shutdown():
@@ -330,17 +354,18 @@ def process_images_for_confidence(image_paths: List[Path], conf: float, max_work
     return df_result
 
 
-def evaluate_metric_for_confidence(pred_df: pd.DataFrame, gt_bytes: bytes, conf: float) -> float:
+def evaluate_metric_for_thresholds(pred_df: pd.DataFrame, gt_bytes: bytes, conf: float, iou: float) -> float:
     """
-    Memory-efficient evaluation of the hackathon metric for a given confidence threshold.
+    Memory-efficient evaluation of the hackathon metric for a given conf & IoU.
 
     Args:
-        pred_df (pd.DataFrame): DataFrame containing predictions for the current confidence.
+        pred_df (pd.DataFrame): DataFrame containing predictions for the current thresholds.
         gt_bytes (bytes): Byte representation of the ground truth DataFrame.
         conf (float): Confidence threshold used for predictions.
+        iou (float): Starting IoU threshold for the metric sweep.
 
     Returns:
-        float: Calculated hackathon metric score for the given confidence.
+        float: Calculated hackathon metric score for the given thresholds.
     """
     try:
         # Convert predictions to bytes format
@@ -362,24 +387,25 @@ def evaluate_metric_for_confidence(pred_df: pd.DataFrame, gt_bytes: bytes, conf:
         return float(metric)
         
     except Exception as e:
-        print(f"Error evaluating metric for conf={conf:.3f}: {str(e)}")
+        print(f"Error evaluating metric for conf={conf:.3f}, iou={iou:.3f}: {str(e)}")
         return 0.0
 
 
 # ----- Main optimization routine -----
 def main():
     """
-    Main function to optimize confidence threshold for hackathon metric.
+    Main function to optimize confidence & IoU thresholds for hackathon metric.
     Parses command-line arguments, loads ground truth, finds images, and performs grid search.
     """
     # Parse command-line arguments
     args = parse_args()
     
-    print("🔍 Hackathon Metric Confidence Optimization")
+    print("🔍 Hackathon Metric Threshold Optimization")
     print("=" * 50)
     print(f"Image directory: {args.img_dir}")
     print(f"Ground truth CSV: {args.gt_csv}")
     print(f"Confidence range: {args.conf_range[0]:.3f} to {args.conf_range[1]:.3f} step {args.conf_range[2]:.3f}")
+    print(f"IoU range:       {args.iou_range[0]:.3f} to {args.iou_range[1]:.3f} step {args.iou_range[2]:.3f}")
     print(f"Max workers: {args.max_workers}")
     
     # Load ground truth
@@ -392,53 +418,63 @@ def main():
     image_paths = get_image_paths(args.img_dir, img_exts)
     print(f"Found {len(image_paths)} images")
     
-    # Generate confidence values
+    # Generate threshold values
     conf_start, conf_stop, conf_step = args.conf_range
     conf_values = [round(c, 3) for c in frange(conf_start, conf_stop, conf_step)]
+
+    iou_start, iou_stop, iou_step = args.iou_range
+    iou_values = [round(i, 3) for i in frange(iou_start, iou_stop, iou_step)]
     
-    print(f"\n⚡ Testing {len(conf_values)} confidence thresholds...")
+    total = len(conf_values) * len(iou_values)
+    print(f"\n⚡ Testing {total} (conf, IoU) combinations...")
     
     # Grid search with memory monitoring
     best_score = -1.0
     best_conf = None
+    best_iou = None
     grid_results = []
     
     interrupted = False
     processed_count = 0
     
-    for conf in tqdm(conf_values, desc="Optimizing confidence"):
-        # Check for shutdown request before processing
+    for conf in tqdm(conf_values, desc="Confidence loop"):
+        for iou in iou_values:
+            # Check for shutdown request before processing
+            if shutdown_handler.should_shutdown():
+                interrupted = True
+                print(f"\n🛑 Shutdown requested. Processed {processed_count}/{total} combinations.")
+                break
+            
+            # Process images with current thresholds using parallel processing
+            pred_df = process_images_for_thresholds(image_paths, conf, iou, max_workers=args.max_workers)
+            
+            # Check for shutdown request after processing (in case it was interrupted during processing)
+            if shutdown_handler.should_shutdown():
+                interrupted = True
+                print(f"\n🛑 Shutdown requested. Processed {processed_count}/{total} combinations.")
+                # Clean up current prediction data
+                del pred_df
+                gc.collect()
+                break
+            
+            # Evaluate metric
+            score = evaluate_metric_for_thresholds(pred_df, gt_bytes, conf, iou)
+            grid_results.append((conf, iou, score))
+            processed_count += 1
+            
+            if score > best_score:
+                best_score = score
+                best_conf = conf
+                best_iou = iou
+            
+            print(f"conf={conf:.3f}, iou={iou:.3f} → metric={score:.5f}")
+            
+            # Critical: Clean up memory after each combination iteration
+            del pred_df  # Free the DataFrame immediately
+            gc.collect()  # Force garbage collection to free memory
+        
         if shutdown_handler.should_shutdown():
-            interrupted = True
-            print(f"\n🛑 Shutdown requested. Processed {processed_count}/{len(conf_values)} confidence values.")
             break
-        
-        # Process images with current confidence using parallel processing
-        pred_df = process_images_for_confidence(image_paths, conf, max_workers=args.max_workers)
-        
-        # Check for shutdown request after processing (in case it was interrupted during processing)
-        if shutdown_handler.should_shutdown():
-            interrupted = True
-            print(f"\n🛑 Shutdown requested. Processed {processed_count}/{len(conf_values)} confidence values.")
-            # Clean up current prediction data
-            del pred_df
-            gc.collect()
-            break
-        
-        # Evaluate metric
-        score = evaluate_metric_for_confidence(pred_df, gt_bytes, conf)
-        grid_results.append((conf, score))
-        processed_count += 1
-        
-        if score > best_score:
-            best_score = score
-            best_conf = conf
-        
-        print(f"conf={conf:.3f} → metric={score:.5f}")
-        
-        # Critical: Clean up memory after each confidence iteration
-        del pred_df  # Free the DataFrame immediately
-        gc.collect()  # Force garbage collection to free memory
     
     # Results summary
     print("\n" + "="*50)
@@ -448,14 +484,14 @@ def main():
         print("🏆 OPTIMIZATION RESULTS")
     print("="*50)
     
-    if best_conf is not None:
-        print(f"Best confidence threshold: {best_conf:.3f}")
+    if best_conf is not None and best_iou is not None:
+        print(f"Best thresholds → confidence: {best_conf:.3f}, IoU: {best_iou:.3f}")
         print(f"Best metric score: {best_score:.5f}")
     else:
         print("No results available (interrupted before first evaluation)")
     
     if interrupted:
-        print(f"Processed: {processed_count}/{len(conf_values)} confidence values")
+        print(f"Processed: {processed_count}/{total} (conf, IoU) combinations")
         print("Results are incomplete due to early termination")
     
     print("="*50)
@@ -464,13 +500,13 @@ def main():
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     
-    # Save results even if partial
+    # Save CSV results even if partial
     if grid_results:
         csv_filename = "hackathon_metric_optimization_partial.csv" if interrupted else "hackathon_metric_optimization.csv"
         csv_path = out_dir / csv_filename
         with csv_path.open("w", newline="") as f:
             writer = csv.writer(f)
-            writer.writerow(["conf", "hackathon_metric"])
+            writer.writerow(["conf", "iou", "hackathon_metric"])
             writer.writerows(grid_results)
         
         result_type = "Partial results" if interrupted else "Full results"
@@ -485,18 +521,21 @@ def main():
         f.write(f"Image directory: {args.img_dir}\n")
         f.write(f"Ground truth CSV: {args.gt_csv}\n")
         f.write(f"Confidence range: {conf_start:.3f} to {conf_stop:.3f} step {conf_step:.3f}\n")
+        f.write(f"IoU range:       {iou_start:.3f} to {iou_stop:.3f} step {iou_step:.3f}\n")
         f.write(f"Images processed: {len(image_paths)}\n")
-        f.write(f"Confidence values tested: {processed_count}/{len(conf_values)}\n")
+        f.write(f"Combinations tested: {processed_count}/{total}\n")
         if interrupted:
             f.write(f"Status: INTERRUPTED - partial results only\n")
         else:
             f.write(f"Status: COMPLETED\n")
-        if best_conf is not None:
+        if best_conf is not None and best_iou is not None:
             f.write(f"Best confidence: {best_conf:.3f}\n")
-            f.write(f"Best metric score: {best_score:.5f}\n")
+            f.write(f"Best IoU:        {best_iou:.3f}\n")
+            f.write(f"Best metric:     {best_score:.5f}\n")
         else:
             f.write(f"Best confidence: N/A (no results)\n")
-            f.write(f"Best metric score: N/A (no results)\n")
+            f.write(f"Best IoU:        N/A (no results)\n")
+            f.write(f"Best metric:     N/A (no results)\n")
     
     summary_type = "Partial summary" if interrupted else "Summary"
     print(f"📄 {summary_type} saved to: {summary_path.resolve()}")
