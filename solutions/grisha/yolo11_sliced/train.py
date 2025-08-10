@@ -42,6 +42,7 @@ class CustomTrainer(DetectionTrainer):
 # Training Configuration
 trainer = CustomTrainer(
     overrides=dict(
+        resume=True,
         model="solutions/grisha/yolo11_sliced/model_configs/yolo11s-p2.yaml",
         data="data/merged_sliced/sampled_data.yaml",
         project="solutions/grisha/yolo11_sliced/finetuned",
